@@ -8,10 +8,16 @@
 import SwiftUI
 
 @main
-struct CameraApp: App {
+struct CameraAppApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
+    }
+}
+
+struct ContentView: View {
+    var body: some View {
+        CameraView()
     }
 }
