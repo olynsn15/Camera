@@ -1,11 +1,3 @@
-//
-//  CameraPreviewView.swift
-//  Camera
-//
-//  Created by Carolyn Santana on 02/05/26.
-//
-
-
 import SwiftUI
 import AVFoundation
 
@@ -26,7 +18,6 @@ struct CameraPreviewView: UIViewRepresentable {
     }
 
     private var gravity: AVLayerVideoGravity {
-        // For 16:9 we crop to fill; for 4:3 we use resize aspect fill too
         return .resizeAspectFill
     }
 }

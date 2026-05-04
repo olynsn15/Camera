@@ -1,11 +1,3 @@
-//
-//  PhotoPreviewView.swift
-//  Camera
-//
-//  Created by Carolyn Santana on 02/05/26.
-//
-
-
 import SwiftUI
 
 struct PhotoPreviewView: View {
@@ -23,7 +15,6 @@ struct PhotoPreviewView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Photo
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
