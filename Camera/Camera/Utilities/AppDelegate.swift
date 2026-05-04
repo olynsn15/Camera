@@ -1,3 +1,5 @@
+import SwiftUI
+
 class AppDelegate: NSObject, UIApplicationDelegate {
     static var orientationLock = UIInterfaceOrientationMask.portrait
 
