@@ -5,29 +5,32 @@
 //  Created by Carolyn Santana on 02/05/26.
 //
 
-
 import SwiftUI
 import AVFoundation
 
 struct CameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
-    let aspectRatio: AspectRatio
 
     func makeUIView(context: Context) -> PreviewUIView {
         let view = PreviewUIView()
         view.videoPreviewLayer.session = session
-        view.videoPreviewLayer.videoGravity = gravity
-        view.videoPreviewLayer.connection?.videoOrientation = .portrait
+        view.videoPreviewLayer.videoGravity = .resizeAspectFill
         return view
     }
 
     func updateUIView(_ uiView: PreviewUIView, context: Context) {
-        uiView.videoPreviewLayer.videoGravity = gravity
+        if let connection = uiView.videoPreviewLayer.connection {
+            connection.videoOrientation = currentVideoOrientation()
+        }
     }
 
-    private var gravity: AVLayerVideoGravity {
-        // For 16:9 we crop to fill; for 4:3 we use resize aspect fill too
-        return .resizeAspectFill
+    private func currentVideoOrientation() -> AVCaptureVideoOrientation {
+        switch UIDevice.current.orientation {
+        case .landscapeLeft: return .landscapeRight
+        case .landscapeRight: return .landscapeLeft
+        case .portraitUpsideDown: return .portraitUpsideDown
+        default: return .portrait
+        }
     }
 }
 

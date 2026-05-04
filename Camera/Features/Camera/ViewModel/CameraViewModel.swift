@@ -75,6 +75,7 @@ class CameraViewModel: NSObject, ObservableObject {
     @Published var permissionGranted = false
     @Published var hasUltraWide = false
     @Published var hasTele = false
+    @Published var capturedOrientation: UIDeviceOrientation = .portrait
 
     let session = AVCaptureSession()
     private var photoOutput = AVCapturePhotoOutput()
@@ -214,16 +215,32 @@ class CameraViewModel: NSObject, ObservableObject {
         guard !isCapturing else { return }
         isCapturing = true
 
+        // ✅ ambil orientation saat shutter
+        let deviceOrientation = UIDevice.current.orientation
+        capturedOrientation = deviceOrientation.isValidInterfaceOrientation
+            ? deviceOrientation
+            : .portrait
+
         let settings = AVCapturePhotoSettings()
+
+        // ✅ apply ke camera output
+        if let connection = photoOutput.connection(with: .video) {
+            connection.videoOrientation = currentVideoOrientation()
+        }
+
         settings.flashMode = flashMode.avFlashMode
+
         if photoOutput.availablePhotoCodecTypes.contains(.hevc) {
-            let hevcSettings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.hevc])
-            hevcSettings.flashMode = flashMode.avFlashMode
-            photoOutput.capturePhoto(with: hevcSettings, delegate: self)
+            let hevc = AVCapturePhotoSettings(format: [
+                AVVideoCodecKey: AVVideoCodecType.hevc
+            ])
+            hevc.flashMode = flashMode.avFlashMode
+            photoOutput.capturePhoto(with: hevc, delegate: self)
         } else {
             photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }
+
 
     func setZoom(_ level: ZoomLevel) {
         guard let device = currentDevice else { return }
@@ -319,6 +336,15 @@ class CameraViewModel: NSObject, ObservableObject {
         }
         return result
     }
+    
+    private func currentVideoOrientation() -> AVCaptureVideoOrientation {
+        switch UIDevice.current.orientation {
+        case .landscapeLeft: return .landscapeRight
+        case .landscapeRight: return .landscapeLeft
+        case .portraitUpsideDown: return .portraitUpsideDown
+        default: return .portrait
+        }
+    }
 }
 
 extension CameraViewModel: AVCapturePhotoCaptureDelegate {
@@ -331,7 +357,7 @@ extension CameraViewModel: AVCapturePhotoCaptureDelegate {
             return
         }
         Task { @MainActor in
-            self.capturedImage = self.cropped(rawImage, to: self.aspectRatio)
+            self.capturedImage = rawImage
             self.isCapturing = false
             self.showPreview = true
         }

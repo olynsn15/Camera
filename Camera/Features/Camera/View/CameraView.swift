@@ -11,22 +11,23 @@ struct CameraView: View {
     @State private var showingFullPreview = false
     @State private var shutterAnimation = false
     @State private var gridLabelVisible = false
-
+    @StateObject private var orientation = DeviceOrientation()
+    
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-
+            
             VStack(spacing: 0) {
                 // ── TOP BAR ──────────────────────────────────────────
                 topBar
-
+                
                 // ── VIEWFINDER ────────────────────────────────────────
                 viewfinder
-
+                
                 // ── BOTTOM BAR ────────────────────────────────────────
                 bottomBar
             }
-
+            
             // Flash overlay on capture
             if shutterAnimation {
                 Color.white
@@ -34,10 +35,14 @@ struct CameraView: View {
                     .opacity(shutterAnimation ? 0.6 : 0)
                     .animation(.easeOut(duration: 0.15), value: shutterAnimation)
             }
-
+            
             // Full screen photo preview
             if showingFullPreview, let img = vm.capturedImage {
-                PhotoPreviewView(image: img, isPresented: $showingFullPreview) {
+                PhotoPreviewView(
+                    image: img,
+                    orientation: vm.capturedOrientation,
+                    isPresented: $showingFullPreview
+                ) {
                     vm.savePhoto(img)
                 }
                 .zIndex(10)
@@ -46,10 +51,16 @@ struct CameraView: View {
         }
         .preferredColorScheme(.dark)
         .animation(.easeInOut(duration: 0.2), value: showingFullPreview)
+        .onAppear {
+            AppDelegate.orientationLock = .portrait
+        }
+        .onDisappear {
+            AppDelegate.orientationLock = .all
+        }
     }
-
+    
     // MARK: - Top Bar
-
+    
     private var topBar: some View {
         HStack {
             // Flash button
@@ -57,54 +68,59 @@ struct CameraView: View {
                 vm.cycleFlash()
             } label: {
                 Image(systemName: vm.flashMode.icon)
+                    .rotationEffect(.degrees(orientation.angle))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.75), value: orientation.angle)
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(vm.flashMode == .off ? .white : .yellow)
-                    .frame(width: 48, height: 40)
+                    .frame(width: 44, height: 40)
                     .background(Color.white.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(Circle())
             }
-
+            
             Spacer()
-
+            
             // Aspect Ratio button
             Button {
                 vm.cycleAspectRatio()
             } label: {
                 Text(vm.aspectRatio.rawValue)
+                    .rotationEffect(.degrees(orientation.angle))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.75), value: orientation.angle)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
+                    .frame(width: 44, height: 40)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(Color.white.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(Circle())
             }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .background(Color.black)
     }
-
+    
     // MARK: - Viewfinder
-
+    
     private var viewfinder: some View {
         GeometryReader { geo in
             let width = geo.size.width
             let height = viewfinderHeight(for: width)
-
+            
             ZStack {
                 // Camera preview
-                CameraPreviewView(session: vm.session, aspectRatio: vm.aspectRatio)
+                CameraPreviewView(session: vm.session)
                     .frame(width: width, height: height)
                     .clipped()
-
+                
                 // Grid overlay
                 OverlayGridView(overlay: vm.gridOverlay, aspectRatio: vm.aspectRatio)
                     .frame(width: width, height: height)
                     .allowsHitTesting(false)
-
+                
                 // Grid mode label (appears briefly after cycling)
                 if gridLabelVisible && vm.gridOverlay != .none {
-                    VStack {
+                    ZStack {
                         Text(vm.gridOverlay.label.uppercased())
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundColor(.white)
@@ -112,8 +128,10 @@ struct CameraView: View {
                             .padding(.vertical, 8)
                             .background(Color.black.opacity(0.55))
                             .clipShape(Capsule())
-                            .padding(.top, 16)
-                        Spacer()
+                            .fixedSize() // ⬅️ penting banget
+                            .rotationEffect(.degrees(orientation.angle))
+                            .animation(.easeInOut(duration: 0.25), value: orientation.angle)
+                            .position(labelPosition(in: geo.size))
                     }
                 }
             }
@@ -122,42 +140,60 @@ struct CameraView: View {
         }
         .aspectRatio(viewfinderAspectRatio, contentMode: .fit)
     }
-
+    
     private var viewfinderAspectRatio: CGFloat {
         switch vm.aspectRatio {
         case .ratio16x9: return 9.0 / 16.0
         case .ratio4x3: return 3.0 / 4.0
         }
     }
-
+    
     private func viewfinderHeight(for width: CGFloat) -> CGFloat {
         switch vm.aspectRatio {
         case .ratio16x9: return width * 16 / 9
         case .ratio4x3: return width * 4 / 3
         }
     }
-
+    
+    private func labelPosition(in size: CGSize) -> CGPoint {
+        let topPadding: CGFloat = 40
+        
+        switch orientation.angle {
+        case 90: // landscape left
+            return CGPoint(x: size.width - topPadding, y: size.height / 2)
+            
+        case -90: // landscape right
+            return CGPoint(x: topPadding, y: size.height / 2)
+            
+        case 180: // upside down
+            return CGPoint(x: size.width / 2, y: size.height - topPadding)
+            
+        default: // portrait
+            return CGPoint(x: size.width / 2, y: topPadding)
+        }
+    }
+    
     // MARK: - Bottom Bar
-
+    
     private var bottomBar: some View {
         VStack(spacing: 0) {
             // Zoom selector
             zoomSelector
                 .padding(.top, 20)
                 .padding(.bottom, 24)
-
+            
             // Main controls: thumbnail | shutter | grid
             HStack(alignment: .center) {
                 // Thumbnail / last photo
                 thumbnailButton
-
+                
                 Spacer()
-
+                
                 // Shutter
                 shutterButton
-
+                
                 Spacer()
-
+                
                 // Grid toggle
                 gridButton
             }
@@ -167,9 +203,9 @@ struct CameraView: View {
         .background(Color.black)
         .frame(maxWidth: .infinity)
     }
-
+    
     // MARK: - Zoom Selector
-
+    
     private var zoomSelector: some View {
         HStack(spacing: 6) {
             ForEach(ZoomLevel.allCases, id: \.rawValue) { level in
@@ -181,11 +217,13 @@ struct CameraView: View {
                     case .tele: return vm.hasTele
                     }
                 }()
-
+                
                 Button {
                     vm.setZoom(level)
                 } label: {
                     Text(level.label)
+                        .rotationEffect(.degrees(orientation.angle))
+                        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: orientation.angle)
                         .font(.system(
                             size: isActive ? 16 : 14,
                             weight: isActive ? .bold : .regular,
@@ -200,8 +238,8 @@ struct CameraView: View {
                         )
                         .background(
                             isActive
-                                ? Color.yellow
-                                : Color.white.opacity(isAvailable ? 0.18 : 0.08)
+                            ? Color.yellow
+                            : Color.white.opacity(isAvailable ? 0.18 : 0.08)
                         )
                         .clipShape(Circle())
                 }
@@ -210,9 +248,9 @@ struct CameraView: View {
             }
         }
     }
-
+    
     // MARK: - Thumbnail Button
-
+    
     private var thumbnailButton: some View {
         Button {
             if vm.capturedImage != nil {
@@ -225,7 +263,7 @@ struct CameraView: View {
                 Circle()
                     .fill(Color.white.opacity(0.12))
                     .frame(width: 60, height: 60)
-
+                
                 if let img = vm.capturedImage {
                     Image(uiImage: img)
                         .resizable()
@@ -237,6 +275,8 @@ struct CameraView: View {
                         )
                 } else {
                     Image(systemName: "photo")
+                        .rotationEffect(.degrees(orientation.angle))
+                        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: orientation.angle)
                         .font(.system(size: 24, weight: .light))
                         .foregroundColor(.white.opacity(0.5))
                 }
@@ -244,9 +284,9 @@ struct CameraView: View {
         }
         .disabled(vm.capturedImage == nil)
     }
-
+    
     // MARK: - Shutter Button
-
+    
     private var shutterButton: some View {
         Button {
             triggerShutter()
@@ -256,7 +296,7 @@ struct CameraView: View {
                     .fill(Color.white)
                     .frame(width: 76, height: 76)
                     .shadow(color: .white.opacity(0.3), radius: 8)
-
+                
                 Circle()
                     .stroke(Color.white.opacity(0.4), lineWidth: 3)
                     .frame(width: 88, height: 88)
@@ -266,9 +306,9 @@ struct CameraView: View {
         }
         .disabled(vm.isCapturing)
     }
-
+    
     // MARK: - Grid Button
-
+    
     private var gridButton: some View {
         Button {
             vm.cycleGrid()
@@ -285,15 +325,17 @@ struct CameraView: View {
                 Circle()
                     .fill(Color.white.opacity(0.15))
                     .frame(width: 60, height: 60)
-
+                
                 // Custom grid icon based on current mode
                 gridIcon
+                    .rotationEffect(.degrees(orientation.angle))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.75), value: orientation.angle)
                     .foregroundColor(.white)
                     .frame(width: 28, height: 28)
             }
         }
     }
-
+    
     @ViewBuilder
     private var gridIcon: some View {
         switch vm.gridOverlay {
@@ -309,9 +351,9 @@ struct CameraView: View {
                 .font(.system(size: 22, weight: .medium))
         }
     }
-
+    
     // MARK: - Actions
-
+    
     private func triggerShutter() {
         // Flash white overlay
         withAnimation(.easeOut(duration: 0.1)) {

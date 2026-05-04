@@ -1,3 +1,12 @@
+//
+//  AppDelegate.swift
+//  Camera
+//
+//  Created by Carolyn Santana on 03/05/26.
+//
+
+import UIKit
+
 class AppDelegate: NSObject, UIApplicationDelegate {
     static var orientationLock = UIInterfaceOrientationMask.portrait
 
